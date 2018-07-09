@@ -61,8 +61,13 @@ public class Order implements Comparable<Order>{
                 '}';
     }
 
+    /**
+     * This is nulls last sorting
+     * No NullPointerException will be thrown
+     */
     @Override
     public int compareTo(Order o) {
-        return registeredAt.compareTo(o.getRegisteredAt());
+
+        return this.registeredAt == null || o.getRegisteredAt() == null ? -1 : registeredAt.compareTo(o.getRegisteredAt());
     }
 }

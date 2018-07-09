@@ -2,12 +2,10 @@ package com.talismanov;
 
 import com.talismanov.beans.Order;
 import com.talismanov.beans.WorkingHours;
-import com.talismanov.util.DateUtils;
+import com.talismanov.util.FileHelper;
+import com.talismanov.util.OverlapHelper;
+import com.talismanov.util.WorkingHoursHelper;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -15,6 +13,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+
+import static com.talismanov.util.DateUtils.isOutsideOfficeHours;
 
 public class Main {
 
@@ -31,19 +31,12 @@ public class Main {
 
     private void performWork(String[] args) {
 
-        if (args.length != 1) {
-            System.err.println("please provide path to file.\n " +
-                    "For Example: C:/work/file.txt for Windows \n" +
-                    "or /home/smith/file.txt for UNIX");
-            System.exit(1);
-        }
-
-        String fileName = args[0];
-        String input = getInputToWorkWithFromFile(fileName);
+        String fileName = checkArgsAndGetFileName(args);
+        String input = FileHelper.getInputToWorkWithFromFile(fileName);
 
         String[] lines = input.split("\n");
         String firstLine = lines[0];
-        workingHours = getWorkingHours(firstLine);
+        workingHours = WorkingHoursHelper.getWorkingHours(firstLine);
 
         fillInputList(lines);
         //sort by date of registration
@@ -51,46 +44,24 @@ public class Main {
 
         //check if outside of office hours and if is overlap with date
 
-        inputList.stream().filter( order -> {
+        inputList.stream().filter(order -> {
             LocalDateTime orderedTime = order.getOrderedTime();
             LocalTime orderLocalTime = orderedTime.toLocalTime();
-            return  !isOutsideOfficeHours(order, orderLocalTime) && !isOverlapWithList(order);
+            return !isOutsideOfficeHours(order, orderLocalTime, workingHours) && !OverlapHelper.isOverlapWithList(order, finalList);
         }).forEach(finalList::add);
 
         printResult();
     }
 
-    private boolean isOverlapWithList(Order order) {
-        List<Order> copy = new ArrayList<>(finalList);
-        return copy.stream()
-                .anyMatch(item -> isOverlap(order, item));
-    }
-
-    /*
-        Should be like this for testing input
-        2011-03-21
-        09:00 11:00 EMP002
-        2011-03-22
-        14:00 16:00 EMP003
-        16:00 17:00 EMP004
-        */
-    private void printResult() {
-
-        //Sort List by time of meeting to print
-        finalList.sort(Comparator.comparing(Order::getOrderedTime));
-
-        String dateToPrint = "";
-        for (Order order : finalList) {
-            LocalDateTime orderedTime = order.getOrderedTime();
-            String newDateToPrint = orderedTime.toLocalDate().toString();
-
-            if (!newDateToPrint.equals(dateToPrint)) {
-                dateToPrint = newDateToPrint;
-                System.out.println(dateToPrint);
-            }
-            LocalTime localTime = orderedTime.toLocalTime();
-            System.out.println(localTime + " " + localTime.plusHours(order.getHoursOfMeeting()) + " " +order.getUserRegistered());
+    private String checkArgsAndGetFileName(String[] args) {
+        if (args.length != 1) {
+            System.err.println("please provide path to file.\n " +
+                    "For Example: C:/work/file.txt for Windows \n" +
+                    "or /home/smith/file.txt for UNIX");
+            System.exit(1);
         }
+
+        return args[0];
     }
 
     private void fillInputList(String[] lines) {
@@ -122,51 +93,21 @@ public class Main {
         }
     }
 
-    private boolean isOverlap(Order order1, Order order2) {
-        LocalDateTime start1 = order1.getOrderedTime();
-        LocalDateTime end1 = start1.plusHours(order1.getHoursOfMeeting());
+    private void printResult() {
+        //Sort List by time of meeting to print
+        finalList.sort(Comparator.comparing(Order::getOrderedTime));
 
-        LocalDateTime start2 = order2.getOrderedTime();
-        LocalDateTime end2 = start2.plusHours(order2.getHoursOfMeeting());
+        String dateToPrint = "";
+        for (Order order : finalList) {
+            LocalDateTime orderedTime = order.getOrderedTime();
+            String newDateToPrint = orderedTime.toLocalDate().toString();
 
-        return DateUtils.isTwoDatesOverlap(start1, end1, start2, end2);
-    }
-
-    private String getInputToWorkWithFromFile(String fileName) {
-        StringBuilder inputFromFile = new StringBuilder();
-        try (BufferedReader bufferedReader = new BufferedReader(new FileReader(fileName))) {
-            String line = "";
-            while ((line = bufferedReader.readLine()) != null)
-            inputFromFile.append(line).append("\n");
-        } catch (FileNotFoundException e) {
-            System.err.println("named file does not exist,\n" +
-                    " is a directory rather than a regular file,\n" +
-                    " or for some other reason cannot be opened for\n" +
-            "reading. Make sure you use / on both Windows and UNIX systems. \n" +
-                    "You wrote this path = " + fileName);
-            System.exit(2);
-        } catch (IOException e) {
-            System.err.println("something went wrong with file.\n" +
-                    "Make sure you use / on both Windows and UNIX  systems. \n" +
-                    "You wrote this path = " + fileName);
-            System.exit(3);
+            if (!newDateToPrint.equals(dateToPrint)) {
+                dateToPrint = newDateToPrint;
+                System.out.println(dateToPrint);
+            }
+            LocalTime localTime = orderedTime.toLocalTime();
+            System.out.println(localTime + " " + localTime.plusHours(order.getHoursOfMeeting()) + " " + order.getUserRegistered());
         }
-
-        return inputFromFile.toString();
-    }
-
-    private boolean isOutsideOfficeHours(Order order, LocalTime orderLocalTime) {
-        return orderLocalTime.isBefore(workingHours.getFrom()) ||
-                orderLocalTime.plusHours(order.getHoursOfMeeting()).isAfter(workingHours.getTo());
-    }
-
-    private WorkingHours getWorkingHours(String line) {
-        String[] workingHoursArray = line.split(" ");
-        String hoursFrom = workingHoursArray[0];
-        String hoursTo = workingHoursArray[1];
-        LocalTime workingTimeFrom = LocalTime.of(Integer.parseInt(hoursFrom.substring(0, 2)), Integer.parseInt(hoursFrom.substring(2)));
-        LocalTime workingTimeTo = LocalTime.of(Integer.parseInt(hoursTo.substring(0, 2)), Integer.parseInt(hoursTo.substring(2)));
-
-        return new WorkingHours(workingTimeFrom, workingTimeTo);
     }
 }
