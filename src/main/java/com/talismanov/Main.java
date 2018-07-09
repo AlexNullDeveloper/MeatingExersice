@@ -31,6 +31,13 @@ public class Main {
 
     private void performWork(String[] args) {
 
+        if (args.length != 1) {
+            System.err.println("please provide path to file.\n " +
+                    "For Example: C:/work/file.txt for Windows \n" +
+                    "or /home/smith/file.txt for UNIX");
+            System.exit(1);
+        }
+
         String fileName = args[0];
         String input = getInputToWorkWithFromFile(fileName);
 
@@ -137,10 +144,12 @@ public class Main {
                     " or for some other reason cannot be opened for\n" +
             "reading. Make sure you use / on both Windows and UNIX systems. \n" +
                     "You wrote this path = " + fileName);
+            System.exit(2);
         } catch (IOException e) {
             System.err.println("something went wrong with file.\n" +
                     "Make sure you use / on both Windows and UNIX  systems. \n" +
                     "You wrote this path = " + fileName);
+            System.exit(3);
         }
 
         return inputFromFile.toString();
