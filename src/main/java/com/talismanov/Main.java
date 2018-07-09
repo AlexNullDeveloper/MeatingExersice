@@ -2,6 +2,7 @@ package com.talismanov;
 
 import com.talismanov.beans.Order;
 import com.talismanov.beans.WorkingHours;
+import com.talismanov.util.DateUtils;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -25,18 +26,6 @@ public class Main {
 
     public static void main(String[] args) {
         new Main().performWork(args);
-//        boolean twoDatesOverlap = new Main().isTwoDatesOverlap(LocalDateTime.of(1990, 1, 10, 6, 00, 00),
-//                LocalDateTime.of(1990, 1, 10, 7, 00, 00),
-//                LocalDateTime.of(1990, 1, 10, 7, 00, 00),
-//                LocalDateTime.of(1990, 1, 10, 8, 00, 00));
-//        System.out.println("twoDatesOverlap=" + twoDatesOverlap);
-
-//        boolean twoDatesOverlap = new Main().isTwoDatesOverlap(LocalDateTime.of(1990, 1, 10, 6, 00, 00),
-//                LocalDateTime.of(1990, 1, 10, 6, 59, 59),
-//                LocalDateTime.of(1990, 1, 10, 7, 00, 00),
-//                LocalDateTime.of(1990, 1, 10, 8, 00, 00));
-//        System.out.println("twoDatesOverlap=" + twoDatesOverlap);
-
 
     }
 
@@ -44,90 +33,35 @@ public class Main {
 
         String fileName = args[0];
         String input = getInputToWorkWithFromFile(fileName);
-        System.out.println(input);
 
-//        String input = "0900 1730\n" +
-//                "2011-03-17 10:17:06 EMP001\n" +
-//                "2011-03-21 09:00 2\n" +
-//                "2011-03-16 12:34:56 EMP002\n" +
-//                "2011-03-21 09:00 2\n" +
-//                "2011-03-16 09:28:23 EMP003\n" +
-//                "2011-03-22 14:00 2\n" +
-//                "2011-03-17 11:23:45 EMP004\n" +
-//                "2011-03-22 16:00 1\n" +
-//                "2011-03-15 17:29:12 EMP005\n" +
-//                "2011-03-21 16:00 3";
-//        System.out.println(input);
-
-        System.out.println("----------->\n");
         String[] lines = input.split("\n");
         String firstLine = lines[0];
         workingHours = getWorkingHours(firstLine);
-//        System.out.println(workingHours);
 
-
-
-        fillInputList(lines, inputList);
+        fillInputList(lines);
         //sort by date of registration
         Collections.sort(inputList);
 
-        System.out.println("after sort");
-        inputList.forEach(System.out::println);
+        //check if outside of office hours and if is overlap with date
 
-
-        /*
-Ограничения
-● Никакая часть собрания не может выходить за пределы рабочего времени. +
-● Встречи могут не совпадать.
-● Система подачи заявок на бронирование допускает только одно представление одновременно, поэтому время подачи гарантировано будет уникальным.
-● Заказы должны обрабатываться в хронологическом порядке, в котором они были отправлены. +
-● При заказе заявок на бронирование в прилагаемом входе не гарантируется.
-Заметки
-● Текущие требования не предусматривают предупреждения пользователей о неудачных заказах; пользователь должен подтвердить, что их бронирование было успешным.
-● Хотя система, которую вы создаете, может открывать и анализировать текстовый файл для ввода,
-это не является частью требований. Пока текст ввода находится в правильном формате, метод ввода зависит от разработчика.*/
-
-        for (int i = 0; i < inputList.size(); i++) {
-            Order order = inputList.get(i);
+        inputList.stream().filter( order -> {
             LocalDateTime orderedTime = order.getOrderedTime();
             LocalTime orderLocalTime = orderedTime.toLocalTime();
-            if (!isOutsideOfficeHours(order, orderLocalTime)) {
+            return  !isOutsideOfficeHours(order, orderLocalTime) && !isOverlapWithList(order);
+        }).forEach(finalList::add);
 
-                System.out.println("pizdec");
-
-                //TODO check if overlap with any from finalList
-
-
-                isOverlapWithList(order, finalList);
-
-                if (!isOverlapWithList(order, finalList)) {
-                    finalList.add(order);
-                }
-//                for (Order finalListOrder : finalList) {
-//                    LocalDateTime finalListOrderOrderedTime = finalListOrder.getOrderedTime();
-//                    if (!isOverlap(order, finalListOrder)) {
-//                        System.out.println("bad order " + order);
-//                    } else {
-////                        finalList.add(order);
-//                    }
-//                }
-            }
-        }
         printResult();
-
     }
 
-    private boolean isOverlapWithList(Order order, List<Order> finalList) {
+    private boolean isOverlapWithList(Order order) {
         List<Order> copy = new ArrayList<>(finalList);
-        for (Order item : copy) {
-            if (isOverlap(order, item)) {
-                return true;
-            }
-        }
-        return false;
+        return copy.stream()
+                .anyMatch(item -> isOverlap(order, item));
     }
 
-    /*  2011-03-21
+    /*
+        Should be like this for testing input
+        2011-03-21
         09:00 11:00 EMP002
         2011-03-22
         14:00 16:00 EMP003
@@ -152,34 +86,27 @@ public class Main {
         }
     }
 
-    private void fillInputList(String[] lines, List<Order> inputList) {
+    private void fillInputList(String[] lines) {
         Order currentOrder = new Order();
         for (int i = 1; i < lines.length; i++) {
             String line = lines[i];
             if (i % 2 == 1) {
                 //line where employee made an order
-//                System.out.println(line);
                 int emp = line.indexOf("EMP");
 
                 String employee = line.substring(emp);
                 currentOrder.setUserRegistered(employee);
-//                String str = "1986-04-08 12:30";
 
                 String dateWhenRegisteredAsString = line.substring(0, emp).trim();
-//                System.out.println(dateWhenRegisteredAsString);
                 LocalDateTime dateTime = LocalDateTime.parse(dateWhenRegisteredAsString, formatterWithSeconds);
                 currentOrder.setRegisteredAt(dateTime);
-//                System.out.println(employee);
 
             } else {
                 //line where is a date of meeting and hours of meeting
                 String dateWhenMeetingStartsAsString = line.substring(0, line.length() - 2);
-//                System.out.println(dateWhenMeetingStartsAsString);
                 currentOrder.setOrderedTime(LocalDateTime.parse(dateWhenMeetingStartsAsString, formatterWithoutSeconds));
                 String hours = line.substring(line.length() - 1);
-//                System.out.println(hours);
                 currentOrder.setHoursOfMeeting(Integer.parseInt(hours));
-//                System.out.println(currentOrder);
 
                 inputList.add(new Order(currentOrder.getRegisteredAt(), currentOrder.getUserRegistered(), currentOrder.getOrderedTime(), currentOrder.getHoursOfMeeting()));
 
@@ -195,23 +122,10 @@ public class Main {
         LocalDateTime start2 = order2.getOrderedTime();
         LocalDateTime end2 = start2.plusHours(order2.getHoursOfMeeting());
 
-        return isTwoDatesOverlap(start1, end1, start2, end2);
+        return DateUtils.isTwoDatesOverlap(start1, end1, start2, end2);
     }
-
-    private boolean isTwoDatesOverlap(LocalDateTime start1, LocalDateTime end1, LocalDateTime start2, LocalDateTime end2) {
-        if (end1.isBefore(start2) || start1.isAfter(end2) || start1.isEqual(end2) || end1.isEqual(start2)) {
-            //they do not overlap
-            return false;
-        } else {
-            //they overlap
-            return true;
-        }
-    }
-
 
     private String getInputToWorkWithFromFile(String fileName) {
-//        System.out.println(fileName);
-
         StringBuilder inputFromFile = new StringBuilder();
         try (BufferedReader bufferedReader = new BufferedReader(new FileReader(fileName))) {
             String line = "";
@@ -238,14 +152,11 @@ public class Main {
     }
 
     private WorkingHours getWorkingHours(String line) {
-//        System.out.println(line);
         String[] workingHoursArray = line.split(" ");
         String hoursFrom = workingHoursArray[0];
         String hoursTo = workingHoursArray[1];
         LocalTime workingTimeFrom = LocalTime.of(Integer.parseInt(hoursFrom.substring(0, 2)), Integer.parseInt(hoursFrom.substring(2)));
-//        System.out.println(workingTimeFrom.toString());
         LocalTime workingTimeTo = LocalTime.of(Integer.parseInt(hoursTo.substring(0, 2)), Integer.parseInt(hoursTo.substring(2)));
-//        System.out.println(workingTimeTo.toString());
 
         return new WorkingHours(workingTimeFrom, workingTimeTo);
     }
